@@ -5,12 +5,12 @@ This is a standalone authentication microservice built with FastAPI. It provides
 ## Features
 
 - **User Registration**: Create new users with a unique email and password.
-- **JWT Authentication**: Securely log in to get a JSON Web Token (JWT).
+- **JWT Authentication**: Securely log in to get a JSON Web Token (JWT) using the **RS256** algorithm.
 - **Password Hashing**: Passwords are securely hashed using Passlib (bcrypt).
 - **Docker Support**: Includes a `Dockerfile` and `docker-compose.yml` for a complete, orchestrated setup.
 - **Configuration Management**: All configuration is managed via environment variables (`.env` file).
 - **PostgreSQL Database**: Uses a robust PostgreSQL database.
-- **Testing**: Comes with a `pytest` suite configured to run against a test PostgreSQL database.
+- **Testing**: Comes with a `pytest` suite configured to run against a test database.
 
 ## Tech Stack
 
@@ -28,21 +28,42 @@ This is the easiest way to get the service and its database up and running.
 ### Prerequisites
 
 - Docker and Docker Compose
+- OpenSSL (for generating keys)
 
-### 1. Configure Your Environment
+### 1. Generate RSA Keys
 
-First, create a `.env` file from the provided example:
+The service uses the RS256 algorithm for JWTs, which requires a private and public key pair.
+
+First, create a directory to store them:
 ```bash
-cp .env.example .env
+mkdir keys
 ```
 
-Now, open the `.env` file and change the `SECRET_KEY` to a new, random value. You can generate one with:
+Now, generate the private and public keys using OpenSSL:
 ```bash
-openssl rand -hex 32
-```
-The other default values for the database are configured to work with `docker-compose` out of the box.
+# Generate a 2048-bit private key
+openssl genpkey -algorithm RSA -out keys/private.pem -pkeyopt rsa_keygen_bits:2048
 
-### 2. Build and Run the Services
+# Extract the public key from the private key
+openssl rsa -pubout -in keys/private.pem -out keys/public.pem
+```
+
+### 2. Configure Your Environment
+
+Create a `.env` file for your configuration. You can copy the structure from the non-existent `.env.example` or create it from scratch. It must contain the following variables:
+
+```
+# .env
+DATABASE_URL="postgresql://user:password@db:5432/auth_db"
+TEST_DATABASE_URL="sqlite:///./test.db"
+
+# Paths to the generated RSA keys
+PRIVATE_KEY_PATH="keys/private.pem"
+PUBLIC_KEY_PATH="keys/public.pem"
+```
+The default values for the database are configured to work with `docker-compose` out of the box.
+
+### 3. Build and Run the Services
 
 Use Docker Compose to build the API image and start both the API and the database containers:
 ```bash
@@ -61,23 +82,12 @@ Once the service is running, interactive API documentation (Swagger UI) is avail
 
 ## Running Tests
 
-The tests are designed to run against a separate test database, as defined by the `TEST_DATABASE_URL` in your `.env` file.
-
-### 1. Ensure Services are Running
-
-Make sure the database container is running via Docker Compose:
-```bash
-docker-compose up -d db
-```
-
-### 2. Run Pytest
+The tests are configured to run against an in-memory SQLite database by default.
 
 From your local machine (with a virtual environment activated and dependencies installed), run the tests:
 ```bash
-# Make sure you have a .env file with the correct TEST_DATABASE_URL
 pytest
 ```
-The `PYTHONPATH=.` is no longer needed if you install your project in editable mode (`pip install -e .`), but is included here for robustness.
 
 ---
 
@@ -91,12 +101,12 @@ If you prefer not to use Docker, you can run the application locally.
     source venv/bin/activate
     pip install -r requirements.txt
     ```
-2.  **Ensure PostgreSQL is running** on your local machine.
-3.  **Create your `.env` file** as described in the Docker setup.
-4.  **Update `.env`**:
-    - Change `DATABASE_URL` and `TEST_DATABASE_URL` to point to your local PostgreSQL instance (e.g., `postgresql://user:pass@localhost:5432/dbname`).
-    - Make sure you have created the two databases (`auth_db` and `test_auth_db`) in PostgreSQL.
-5.  **Run the application**:
+2.  **Generate RSA Keys** as described in the Docker setup section.
+3.  **Ensure a database is running** on your local machine (e.g., PostgreSQL).
+4.  **Create your `.env` file** as described in the Docker setup.
+5.  **Update `.env`**:
+    - If using PostgreSQL, change `DATABASE_URL` to point to your local instance (e.g., `postgresql://user:pass@localhost:5432/dbname`).
+6.  **Run the application**:
     ```bash
     uvicorn app.main:app --reload
     ```
